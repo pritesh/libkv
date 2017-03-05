@@ -82,6 +82,11 @@ type Store interface {
 	// a given directory
 	WatchTree(directory string, stopCh <-chan struct{}) (<-chan []*KVPair, error)
 
+	// WatchTreeExt watches for changes on child nodes under
+	// a given directory and provides some extra information
+	// about them.
+	WatchTreeExt(directory string, stopCh <-chan struct{}) (<-chan *KVPairExt, error)
+
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired
 	// with `.Lock`. The Value is optional.
@@ -109,6 +114,17 @@ type KVPair struct {
 	Key       string
 	Value     []byte
 	LastIndex uint64
+}
+
+// KVPairExt represents  KVPair and some extra
+// information provided by etcd store
+type KVPairExt struct {
+	Key       string
+	Value     string
+	PrevValue string
+	LastIndex uint64
+	Action    string
+	Dir       bool
 }
 
 // WriteOptions contains optional request parameters
