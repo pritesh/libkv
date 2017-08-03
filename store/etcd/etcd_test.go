@@ -1,6 +1,7 @@
 package etcd
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -10,13 +11,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	client = "localhost:4001"
+const (
+	defaultEndpoint = "localhost:4001"
+	endpointEnvVar  = "LIBKV_TEST_ETCD_ENDPOINT"
 )
 
+// makeEtcdClient makes etcd client for use in tests. It uses
+// defaultEndpoint, unless LIBKV_TEST_ETCD_ENDPOINT environment
+// variable is specified, in which case it is used.
 func makeEtcdClient(t *testing.T) store.Store {
+	endpoint := os.Getenv(endpointEnvVar)
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
+
+	t.Logf("Using ETCD endpoint %s", endpoint)
 	kv, err := New(
-		[]string{client},
+		[]string{endpoint},
 		&store.Config{
 			ConnectionTimeout: 3 * time.Second,
 			Username:          "test",
@@ -33,8 +44,12 @@ func makeEtcdClient(t *testing.T) store.Store {
 
 func TestRegister(t *testing.T) {
 	Register()
-
-	kv, err := libkv.NewStore(store.ETCD, []string{client}, nil)
+	endpoint := os.Getenv(endpointEnvVar)
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
+	t.Logf("Using ETCD endpoint %s", endpoint)
+	kv, err := libkv.NewStore(store.ETCD, []string{endpoint}, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, kv)
 
@@ -54,5 +69,7 @@ func TestEtcdStore(t *testing.T) {
 	testutils.RunTestLock(t, kv)
 	testutils.RunTestLockTTL(t, kv, lockKV)
 	testutils.RunTestTTL(t, kv, ttlKV)
+
 	testutils.RunCleanup(t, kv)
+
 }
