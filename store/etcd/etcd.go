@@ -471,7 +471,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
+func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 
 	// Lock holder channel
 	lockHeld := make(chan struct{})

@@ -483,7 +483,7 @@ func (s *Consul) renewLockSession(initialTTL string, id string, stopRenew chan s
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *consulLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
+func (l *consulLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 	return l.lock.Lock(stopChan)
 }
 
