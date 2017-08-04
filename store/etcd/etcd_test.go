@@ -58,6 +58,12 @@ func TestRegister(t *testing.T) {
 	}
 }
 
+func TestEtcdStoreConcurrentLock(t *testing.T) {
+	kv := makeEtcdClient(t)
+	testutils.RunTestLockConcurrent(t, kv)
+	testutils.RunCleanup(t, kv)
+}
+
 func TestEtcdStore(t *testing.T) {
 	kv := makeEtcdClient(t)
 	lockKV := makeEtcdClient(t)
@@ -69,7 +75,5 @@ func TestEtcdStore(t *testing.T) {
 	testutils.RunTestLock(t, kv)
 	testutils.RunTestLockTTL(t, kv, lockKV)
 	testutils.RunTestTTL(t, kv, ttlKV)
-
 	testutils.RunCleanup(t, kv)
-
 }

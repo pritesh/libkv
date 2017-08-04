@@ -1,7 +1,11 @@
 package testutils
 
 import (
+	"bytes"
 	"fmt"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +41,10 @@ func RunTestWatch(t *testing.T, kv store.Store) {
 // by the K/V backends.
 func RunTestLock(t *testing.T, kv store.Store) {
 	testLockUnlock(t, kv)
+}
+
+func RunTestLockConcurrent(t *testing.T, kv store.Store) {
+	testLockUnlockConcurrent(t, kv)
 }
 
 // RunTestLockTTL tests the KV pair Lock with TTL APIs supported
@@ -318,6 +326,82 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 	success, err = kv.AtomicDelete(key, pair)
 	assert.Error(t, store.ErrKeyNotFound)
 	assert.False(t, success)
+}
+
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
+func testLockUnlockConcurrent(t *testing.T, kv store.Store) {
+	key := "testLockUnlockConcurrent"
+	barrier := make(chan int)
+	errCh := make(chan error)
+	cnt := 8
+	lock, err := kv.NewLock(key, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, lock)
+
+	for i := 0; i < cnt; i++ {
+		go func(i int) {
+			fmt.Printf("%d %d Entered\n", i, getGID())
+			defer func(i int) {
+				fmt.Printf("%d %d Unlocking\n", i, getGID())
+				err := lock.Unlock()
+				if err != nil {
+					fmt.Printf("Error occurred in %d %d: %v", i, getGID(), err)
+					errCh <- err
+				}
+				fmt.Printf("%d %d Unlocked\n", i, getGID())
+			}(i)
+			fmt.Printf("%d %d Waiting for lock\n", i, getGID())
+			lockChan, err := lock.Lock(nil)
+			assert.NoError(t, err)
+			assert.NotNil(t, lockChan)
+			fmt.Printf("%d %d Got lock\n", i, getGID())
+			val := fmt.Sprintf("Hello from %d %d", i, getGID())
+			err = kv.Put(fmt.Sprintf("/testLockUnlockConcurrentValue%d", i), []byte(val), nil)
+			if err != nil {
+				fmt.Println(err)
+			}
+			barrier <- 1
+		}(i)
+	}
+	finishedCnt := 0
+
+WAIT_FOR_FINISH:
+	for {
+		select {
+		case err := <-errCh:
+			t.Fatal(err)
+		case <-barrier:
+			finishedCnt++
+			fmt.Printf("%d routines finished\n", finishedCnt)
+			if finishedCnt == cnt {
+				break WAIT_FOR_FINISH
+			}
+		}
+	}
+	// Check that we wrote things
+	for i := 0; i < cnt; i++ {
+		key := fmt.Sprintf("/testLockUnlockConcurrentValue%d", i)
+		expectedValuePrefix := fmt.Sprintf("Hello from %d ", i)
+		kvPair, err := kv.Get(key)
+		assert.NoError(t, err)
+		val := string(kvPair.Value)
+		if !strings.HasPrefix(val, expectedValuePrefix) {
+			t.Fatalf("Expected value at key %s to start with %s, got %s", key, expectedValuePrefix, val)
+		}
+		t.Logf("Found %s=>%s", key, val)
+		err = kv.Delete(key)
+		if err != nil {
+			t.Logf("Error deleting %s: %s", key, err)
+		}
+	}
 }
 
 func testLockUnlock(t *testing.T, kv store.Store) {
@@ -610,6 +694,7 @@ func RunCleanup(t *testing.T, kv store.Store) {
 		"testAtomicPutCreate",
 		"testAtomicDelete",
 		"testLockUnlock",
+		"testLockUnlockConcurrent",
 		"testLockTTL",
 		"testPutTTL",
 		"testList",
