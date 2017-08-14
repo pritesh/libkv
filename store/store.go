@@ -143,6 +143,6 @@ type LockOptions struct {
 // Locker provides locking mechanism on top of the store.
 // Similar to `sync.Lock` except it may return errors.
 type Locker interface {
-	Lock(stopChan chan struct{}) (<-chan struct{}, error)
+	Lock(stopChan <-chan struct{}) (<-chan struct{}, error)
 	Unlock() error
 }

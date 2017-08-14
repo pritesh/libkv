@@ -518,7 +518,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
+func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 
 	// Lock holder channel
 	lockHeld := make(chan struct{})
@@ -543,8 +543,11 @@ func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
 		}
 
 		setOpts.PrevExist = etcd.PrevExist
-		l.last, err = l.client.Set(context.Background(), l.key, l.value, setOpts)
-
+		var lastResp *etcd.Response
+		lastResp, err = l.client.Set(context.Background(), l.key, l.value, setOpts)
+		if lastResp != nil {
+			l.last = lastResp
+		}
 		if err == nil {
 			// Leader section
 			l.stopLock = stopLocking
@@ -622,7 +625,7 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 			errorCh <- err
 			return
 		}
-		if event.Action == "delete" || event.Action == "expire" {
+		if event.Action == "delete" || event.Action == "expire" || event.Action == "compareAndDelete" {
 			free <- true
 			return
 		}
