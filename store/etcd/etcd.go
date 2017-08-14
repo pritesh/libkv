@@ -311,6 +311,53 @@ func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan []*st
 	return watchCh, nil
 }
 
+// WatchTreeExt watches for changes on a "directory",
+// extended edition. It provides some extra information
+// along with normal key and value change.
+// It returns a channel that will receive changes or pass
+// on errors. Providing a non-nil stopCh can be used to
+// stop watching.
+func (s *Etcd) WatchTreeExt(directory string, stopCh <-chan struct{}) (<-chan *store.KVPairExt, error) {
+	watchOpts := &etcd.WatcherOptions{Recursive: true}
+	watcher := s.client.Watcher(s.normalize(directory), watchOpts)
+
+	watchCh := make(chan *store.KVPairExt)
+
+	go func() {
+		defer close(watchCh)
+
+		for {
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+
+			result, err := watcher.Next(context.Background())
+
+			if err != nil {
+				return
+			}
+
+			prevVal := ""
+			if result.PrevNode != nil {
+				prevVal = result.PrevNode.Value
+			}
+
+			watchCh <- &store.KVPairExt{
+				Key:       result.Node.Key,
+				Value:     result.Node.Value,
+				PrevValue: prevVal,
+				LastIndex: result.Node.ModifiedIndex,
+				Action:    result.Action,
+				Dir:       result.Node.Dir,
+			}
+		}
+	}()
+
+	return watchCh, nil
+}
+
 // AtomicPut puts a value at "key" if the key has not been
 // modified in the meantime, throws an error if this is the case
 func (s *Etcd) AtomicPut(key string, value []byte, previous *store.KVPair, opts *store.WriteOptions) (bool, *store.KVPair, error) {
