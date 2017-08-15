@@ -173,7 +173,7 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	return pair, nil
 }
 
-// GetExt the value at "key", returns the last modified
+// GetExt gets the value at "key", returns the last modified
 // index to use in conjunction to Atomic calls
 func (s *Etcd) GetExt(key string) (pair *store.KVPairExt, err error) {
 	getOpts := &etcd.GetOptions{
@@ -293,7 +293,7 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, 
 	return watchCh, nil
 }
 
-// Watch for changes on a "key"
+// WatchExt watches for changes on a "key"
 // It returns a channel that will receive changes or pass
 // on errors. Upon creation, the current value will first
 // be sent to the channel. Providing a non-nil stopCh can
@@ -309,18 +309,20 @@ func (s *Etcd) WatchExt(key string, options store.WatcherOptions, stopCh <-chan 
 		defer close(watchCh)
 
 		// Get the current value
-		pair, err := s.GetExt(key)
-		if err != nil {
-			return
-		}
+		if !options.NoList {
+			pair, err := s.GetExt(key)
+			if err != nil {
+				return
+			}
 
-		// Push the current value through the channel.
-		watchCh <- &store.KVPairExt{
-			Key:       pair.Key,
-			Value:     pair.Value,
-			LastIndex: pair.LastIndex,
-			Action:    pair.Action,
-			Dir:       pair.Dir,
+			// Push the current value through the channel.
+			watchCh <- &store.KVPairExt{
+				Key:       pair.Key,
+				Value:     pair.Value,
+				LastIndex: pair.LastIndex,
+				Action:    pair.Action,
+				Dir:       pair.Dir,
+			}
 		}
 
 		for {
@@ -565,7 +567,7 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 	return kv, nil
 }
 
-// List child nodes of a given directory, etcd native extension.
+// ListExt lists child nodes of a given directory, etcd native extension.
 func (s *Etcd) ListExt(directory string) (*store.KVPairExt, error) {
 	getOpts := &etcd.GetOptions{
 		Quorum:    true,

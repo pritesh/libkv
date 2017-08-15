@@ -81,7 +81,7 @@ type Store interface {
 	// Watch for changes on a key
 	Watch(key string, stopCh <-chan struct{}) (<-chan *KVPair, error)
 
-	// Watch for changes on a key and provides some extra information.
+	// WatchExt watches for changes on a key and provides some extra information.
 	WatchExt(key string, options WatcherOptions, stopCh <-chan struct{}) (<-chan *KVPairExt, error)
 
 	// WatchTree watches for changes on child nodes under
@@ -101,7 +101,7 @@ type Store interface {
 	// List the content of a given prefix
 	List(directory string) ([]*KVPair, error)
 
-	// List the content of a given prefix and provides some extra information.
+	// ListExt lists the content of a given prefix and provides some extra information.
 	ListExt(directory string) (*KVPairExt, error)
 
 	// DeleteTree deletes a range of keys under a given directory
@@ -141,6 +141,7 @@ type KVPairExt struct {
 type WatcherOptions struct {
 	AfterIndex uint64
 	Recursive  bool
+	NoList     bool
 }
 
 // WriteOptions contains optional request parameters
