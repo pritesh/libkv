@@ -173,6 +173,38 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	return pair, nil
 }
 
+// GetExt the value at "key", returns the last modified
+// index to use in conjunction to Atomic calls
+func (s *Etcd) GetExt(key string) (pair *store.KVPairExt, err error) {
+	getOpts := &etcd.GetOptions{
+		Quorum: true,
+	}
+
+	result, err := s.client.Get(context.Background(), s.normalize(key), getOpts)
+	if err != nil {
+		if keyNotFound(err) {
+			return nil, store.ErrKeyNotFound
+		}
+		return nil, err
+	}
+
+	prevVal := ""
+	if result.PrevNode != nil {
+		prevVal = result.PrevNode.Value
+	}
+
+	kv := &store.KVPairExt{
+		Key:       result.Node.Key,
+		Value:     result.Node.Value,
+		PrevValue: prevVal,
+		LastIndex: result.Node.ModifiedIndex,
+		Action:    result.Action,
+		Dir:       result.Node.Dir,
+	}
+
+	return kv, nil
+}
+
 // Put a value at "key"
 func (s *Etcd) Put(key string, value []byte, opts *store.WriteOptions) error {
 	setOpts := &etcd.SetOptions{}
@@ -254,6 +286,69 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, 
 				Key:       key,
 				Value:     []byte(result.Node.Value),
 				LastIndex: result.Node.ModifiedIndex,
+			}
+		}
+	}()
+
+	return watchCh, nil
+}
+
+// Watch for changes on a "key"
+// It returns a channel that will receive changes or pass
+// on errors. Upon creation, the current value will first
+// be sent to the channel. Providing a non-nil stopCh can
+// be used to stop watching.
+func (s *Etcd) WatchExt(key string, options store.WatcherOptions, stopCh <-chan struct{}) (<-chan *store.KVPairExt, error) {
+	opts := &etcd.WatcherOptions{AfterIndex: options.AfterIndex, Recursive: options.Recursive}
+	watcher := s.client.Watcher(s.normalize(key), opts)
+
+	// watchCh is sending back events to the caller
+	watchCh := make(chan *store.KVPairExt)
+
+	go func() {
+		defer close(watchCh)
+
+		// Get the current value
+		pair, err := s.GetExt(key)
+		if err != nil {
+			return
+		}
+
+		// Push the current value through the channel.
+		watchCh <- &store.KVPairExt{
+			Key:       pair.Key,
+			Value:     pair.Value,
+			LastIndex: pair.LastIndex,
+			Action:    pair.Action,
+			Dir:       pair.Dir,
+		}
+
+		for {
+			// Check if the watch was stopped by the caller
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+
+			result, err := watcher.Next(context.Background())
+
+			if err != nil {
+				return
+			}
+
+			prevVal := ""
+			if result.PrevNode != nil {
+				prevVal = result.PrevNode.Value
+			}
+
+			watchCh <- &store.KVPairExt{
+				Key:       result.Node.Key,
+				Value:     result.Node.Value,
+				PrevValue: prevVal,
+				LastIndex: result.Node.ModifiedIndex,
+				Action:    result.Action,
+				Dir:       result.Node.Dir,
 			}
 		}
 	}()
@@ -466,6 +561,32 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 			Value:     []byte(n.Value),
 			LastIndex: n.ModifiedIndex,
 		})
+	}
+	return kv, nil
+}
+
+// List child nodes of a given directory, etcd native extension.
+func (s *Etcd) ListExt(directory string) (*store.KVPairExt, error) {
+	getOpts := &etcd.GetOptions{
+		Quorum:    true,
+		Recursive: true,
+		Sort:      true,
+	}
+
+	result, err := s.client.Get(context.Background(), s.normalize(directory), getOpts)
+	if err != nil {
+		if keyNotFound(err) {
+			return nil, store.ErrKeyNotFound
+		}
+		return nil, err
+	}
+
+	kv := &store.KVPairExt{
+		Key:       result.Node.Key,
+		Value:     result.Node.Value,
+		LastIndex: result.Node.ModifiedIndex,
+		Action:    result.Action,
+		Dir:       result.Node.Dir,
 	}
 	return kv, nil
 }
