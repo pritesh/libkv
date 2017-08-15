@@ -70,7 +70,7 @@ type Store interface {
 	Get(key string) (*KVPair, error)
 
 	// GetExt gets a value given its key and provides some extra information.
-	GetExt(key string) (*KVPairExt, error)
+	GetExt(key string, options GetOptions) (*KVPairExt, error)
 
 	// Delete the value at the specified key
 	Delete(key string) error
@@ -102,7 +102,7 @@ type Store interface {
 	List(directory string) ([]*KVPair, error)
 
 	// ListExt lists the content of a given prefix and provides some extra information.
-	ListExt(directory string) (*KVPairExt, error)
+	ListExt(directory string) ([]*KVPairExt, error)
 
 	// DeleteTree deletes a range of keys under a given directory
 	DeleteTree(directory string) error
@@ -142,6 +142,14 @@ type WatcherOptions struct {
 	AfterIndex uint64
 	Recursive  bool
 	NoList     bool
+}
+
+// GetOptions represent options that can affect
+// the behavior of GetExt function.
+type GetOptions struct {
+	Recursive bool
+	Sort      bool
+	Quorum    bool
 }
 
 // WriteOptions contains optional request parameters

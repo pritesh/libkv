@@ -175,9 +175,11 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 
 // GetExt gets the value at "key", returns the last modified
 // index to use in conjunction to Atomic calls
-func (s *Etcd) GetExt(key string) (pair *store.KVPairExt, err error) {
+func (s *Etcd) GetExt(key string, options store.GetOptions) (pair *store.KVPairExt, err error) {
 	getOpts := &etcd.GetOptions{
-		Quorum: true,
+		Recursive: options.Recursive,
+		Sort:      options.Sort,
+		Quorum:    options.Quorum,
 	}
 
 	result, err := s.client.Get(context.Background(), s.normalize(key), getOpts)
@@ -310,7 +312,7 @@ func (s *Etcd) WatchExt(key string, options store.WatcherOptions, stopCh <-chan 
 
 		// Get the current value
 		if !options.NoList {
-			pair, err := s.GetExt(key)
+			pair, err := s.GetExt(key, store.GetOptions{Quorum: true})
 			if err != nil {
 				return
 			}
@@ -568,7 +570,7 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 }
 
 // ListExt lists child nodes of a given directory, etcd native extension.
-func (s *Etcd) ListExt(directory string) (*store.KVPairExt, error) {
+func (s *Etcd) ListExt(directory string) ([]*store.KVPairExt, error) {
 	getOpts := &etcd.GetOptions{
 		Quorum:    true,
 		Recursive: true,
@@ -583,13 +585,16 @@ func (s *Etcd) ListExt(directory string) (*store.KVPairExt, error) {
 		return nil, err
 	}
 
-	kv := &store.KVPairExt{
-		Key:       result.Node.Key,
-		Value:     result.Node.Value,
-		LastIndex: result.Node.ModifiedIndex,
-		Action:    result.Action,
-		Dir:       result.Node.Dir,
+	kv := []*store.KVPairExt{}
+	for _, n := range result.Node.Nodes {
+		kv = append(kv, &store.KVPairExt{
+			Key:       n.Key,
+			Value:     n.Value,
+			LastIndex: n.ModifiedIndex,
+			Dir:       n.Dir,
+		})
 	}
+
 	return kv, nil
 }
 
