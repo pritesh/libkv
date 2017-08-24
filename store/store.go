@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"time"
+
+	etcd "github.com/coreos/etcd/client"
 )
 
 // Backend represents a KV Store Backend
@@ -134,6 +136,11 @@ type KVPairExt struct {
 	LastIndex uint64
 	Action    string
 	Dir       bool
+	Response  *etcd.Response
+}
+
+func (p *KVPairExt) GetResponse() *etcd.Response {
+	return p.Response
 }
 
 // WatcherOptions represents options that can affect

@@ -202,6 +202,7 @@ func (s *Etcd) GetExt(key string, options store.GetOptions) (pair *store.KVPairE
 		LastIndex: result.Node.ModifiedIndex,
 		Action:    result.Action,
 		Dir:       result.Node.Dir,
+		Response:  result,
 	}
 
 	return kv, nil
@@ -324,6 +325,7 @@ func (s *Etcd) WatchExt(key string, options store.WatcherOptions, stopCh <-chan 
 				LastIndex: pair.LastIndex,
 				Action:    pair.Action,
 				Dir:       pair.Dir,
+				Response:  pair.Response,
 			}
 		}
 
@@ -353,6 +355,7 @@ func (s *Etcd) WatchExt(key string, options store.WatcherOptions, stopCh <-chan 
 				LastIndex: result.Node.ModifiedIndex,
 				Action:    result.Action,
 				Dir:       result.Node.Dir,
+				Response:  result,
 			}
 		}
 	}()
@@ -450,6 +453,7 @@ func (s *Etcd) WatchTreeExt(directory string, stopCh <-chan struct{}) (<-chan *s
 				LastIndex: result.Node.ModifiedIndex,
 				Action:    result.Action,
 				Dir:       result.Node.Dir,
+				Response:  result,
 			}
 		}
 	}()
@@ -592,6 +596,7 @@ func (s *Etcd) ListExt(directory string) ([]*store.KVPairExt, error) {
 			Value:     n.Value,
 			LastIndex: n.ModifiedIndex,
 			Dir:       n.Dir,
+			Response:  result,
 		})
 	}
 
