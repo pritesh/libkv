@@ -45,9 +45,10 @@ type etcdLock struct {
 }
 
 const (
-	periodicSync      = 5 * time.Minute
-	defaultLockTTL    = 20 * time.Minute
-	defaultUpdateTime = 5 * time.Second
+	periodicSync           = 5 * time.Minute
+	defaultLockTTL         = 20 * time.Second
+	defaultUpdateTime      = 5 * time.Second
+	defaultMaxWaitLockTime = 30 * time.Second
 )
 
 // Register registers etcd to libkv
@@ -819,6 +820,12 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 
 				fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded, will retry for %s\n", getGID(), l.waitLockDelay)
 				l.waitLockDelay *= 2
+				if l.waitLockDelay > defaultMaxWaitLockTime {
+					fmt.Printf("=====> %d: In the waitLock loop, delay %d exceeded max wait lock time %d, aborting wait.\n", getGID(), l.waitLockDelay, defaultMaxWaitLockTime)
+					errorCh <- errors.New(fmt.Sprintf("Exceeded %d waiting for the lock", defaultMaxWaitLockTime))
+					l.waitLockDelay = 0
+					return
+				}
 				ctx, cancelFunc = context.WithTimeout(context.Background(), l.waitLockDelay)
 				defer cancelFunc()
 				continue
