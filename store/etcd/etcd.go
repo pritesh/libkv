@@ -47,8 +47,8 @@ type etcdLock struct {
 const (
 	periodicSync           = 5 * time.Minute
 	defaultLockTTL         = 20 * time.Second
+	defaultMaxWaitLockTime = 10 * time.Second
 	defaultUpdateTime      = 5 * time.Second
-	defaultMaxWaitLockTime = 30 * time.Second
 )
 
 // Register registers etcd to libkv
@@ -800,17 +800,19 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 			if err == context.DeadlineExceeded {
 				fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded\n", getGID())
 				// First, see if maybe the key is not there.
-				fmt.Printf("=====> %d: In the waitLock loop, checking for %s\n", getGID(), key)
-				kp, err2 := l.client.Get(ctx, key, nil)
+				fmt.Printf("=====> %d: In the waitLock loop, checking for %s.\n", getGID(), key)
+				kp, err2 := l.client.Get(context.Background(), key, nil)
 				if err2 != nil {
-					if err2 == store.ErrKeyNotFound {
-						fmt.Printf("=====> %d: In the waitLock loop, %s not found \n", getGID(), key)
-						retryLock = false
+					if etcdError, ok := err2.(etcd.Error); ok {
+						if etcdError.Code != etcd.ErrorCodeNodeExist {
+							fmt.Printf("=====> %d: In the waitLock loop, %s not found.\n", getGID(), key)
+							retryLock = false
+						}
 					} else {
-						fmt.Printf("=====> %d: In the waitLock loop, checking on %s: %s (%T)", getGID(), key, err2, err2)
+						fmt.Printf("=====> %d: In the waitLock loop, checking on %s: got error %s (%T)\n", getGID(), key, err2, err2)
 					}
 				} else {
-					fmt.Printf("=====> %d: In the waitLock loop, got %v", getGID(), kp)
+					fmt.Printf("=====> %d: In the waitLock loop, for %s got %v\n", getGID(), key, kp)
 				}
 				if !retryLock {
 					free <- true
@@ -820,12 +822,14 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 
 				fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded, will retry for %s\n", getGID(), l.waitLockDelay)
 				l.waitLockDelay *= 2
+
 				if l.waitLockDelay > defaultMaxWaitLockTime {
 					fmt.Printf("=====> %d: In the waitLock loop, delay %d exceeded max wait lock time %d, aborting wait.\n", getGID(), l.waitLockDelay, defaultMaxWaitLockTime)
 					errorCh <- errors.New(fmt.Sprintf("Exceeded %d waiting for the lock", defaultMaxWaitLockTime))
 					l.waitLockDelay = 0
 					return
 				}
+
 				ctx, cancelFunc = context.WithTimeout(context.Background(), l.waitLockDelay)
 				defer cancelFunc()
 				continue
@@ -879,7 +883,6 @@ func (s *Etcd) Close() {
 	return
 }
 
-// TODO remove this and move it into logging
 func getGID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
