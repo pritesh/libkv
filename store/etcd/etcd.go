@@ -658,7 +658,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
 func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
-	fmt.Printf("=====> %d: etcd.Lock() entering\n", getGID())
+	// fmt.Printf("=====> %d: etcd.Lock() entering\n", getGID())
 	// Lock holder channel
 	lockHeld := make(chan struct{})
 	stopLocking := l.stopRenew
@@ -669,24 +669,24 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 
 	for {
 		setOpts.PrevExist = etcd.PrevNoExist
-		fmt.Printf("=====> %d: etcd.Lock(): trying to set %s to %s\n", getGID(), l.key, l.value)
+		// fmt.Printf("=====> %d: etcd.Lock(): trying to set %s to %s\n", getGID(), l.key, l.value)
 		resp, err := l.client.Set(context.Background(), l.key, l.value, setOpts)
 		if err != nil {
-			fmt.Printf("=====> %d: Etcd.Lock() error %s %T\n", getGID(), err, err)
+			// fmt.Printf("=====> %d: Etcd.Lock() error %s %T\n", getGID(), err, err)
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeNodeExist {
-					fmt.Printf("=====> %d: etcd.Lock(): Got etcd error %s\n", getGID(), err)
+					// fmt.Printf("=====> %d: etcd.Lock(): Got etcd error %s\n", getGID(), err)
 					return nil, err
 				}
-				fmt.Printf("=====> %d: etcd.Lock(): Got etcd.ErrorCodeNodeExist, setting prevIndex to MaxInt\n", getGID())
+				// fmt.Printf("=====> %d: etcd.Lock(): Got etcd.ErrorCodeNodeExist, setting prevIndex to MaxInt\n", getGID())
 				setOpts.PrevIndex = ^uint64(0)
 			} else {
-				fmt.Printf("=====> %d: etcd.Lock(): Got UNHANDLED etcd error %s %T\n", getGID(), err, err)
+				// fmt.Printf("=====> %d: etcd.Lock(): Got UNHANDLED etcd error %s %T\n", getGID(), err, err)
 			}
 
 		} else {
 			setOpts.PrevIndex = resp.Node.ModifiedIndex
-			fmt.Printf("=====> %d: etcd.Lock(): set %s to %s (%d)\n", getGID(), l.key, l.value, setOpts.PrevIndex)
+			// fmt.Printf("=====> %d: etcd.Lock(): set %s to %s (%d)\n", getGID(), l.key, l.value, setOpts.PrevIndex)
 		}
 
 		setOpts.PrevExist = etcd.PrevExist
@@ -697,14 +697,14 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 		}
 		if err == nil {
 			// Leader section
-			fmt.Printf("=====> %d: etcd.Lock(): Leader selection session: set %s to %s, with %d\n", getGID(), l.key, l.value, setOpts.PrevIndex)
+			// fmt.Printf("=====> %d: etcd.Lock(): Leader selection session: set %s to %s, with %d\n", getGID(), l.key, l.value, setOpts.PrevIndex)
 
 			r, err := l.client.Get(context.Background(), l.key, nil)
 			if err != nil {
-				fmt.Printf("=====> %d: etcd.Lock(): ERROR getting lock after set: %s %T\n", getGID(), err, err)
+				// fmt.Printf("=====> %d: etcd.Lock(): ERROR getting lock after set: %s %T\n", getGID(), err, err)
 				return nil, err
 			} else {
-				fmt.Printf("=====> %d: etcd.Lock(): After a Set with %d got %s at %s\n", getGID(), l.last.Node.ModifiedIndex, r, l.key)
+				// fmt.Printf("=====> %d: etcd.Lock(): After a Set with %d got %s at %s\n", getGID(), l.last.Node.ModifiedIndex, r, l.key)
 			}
 
 			l.stopLock = stopLocking
@@ -715,11 +715,11 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 			// If this is a legitimate error, return
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeTestFailed {
-					fmt.Printf("=====> %d: etcd.Lock() got error %s %T\n", getGID(), err, err)
+					// fmt.Printf("=====> %d: etcd.Lock() got error %s %T\n", getGID(), err, err)
 					return nil, err
 				}
 			}
-			fmt.Printf("=====> %d: etcd.Lock() got %s %T, gonna wait\n", getGID(), err, err)
+			// fmt.Printf("=====> %d: etcd.Lock() got %s %T, gonna wait\n", getGID(), err, err)
 			// Seeker section
 			errorCh := make(chan error)
 			chWStop := make(chan bool)
@@ -729,17 +729,17 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 
 			// Wait for the key to be available or for
 			// a signal to stop trying to lock the key
-			fmt.Printf("=====> %d: etcd.Lock() Entering select\n", getGID())
+			// fmt.Printf("=====> %d: etcd.Lock() Entering select\n", getGID())
 
 			select {
 			case <-free:
-				fmt.Printf("=====> %d: etcd.Lock() Got free\n", getGID())
+				// fmt.Printf("=====> %d: etcd.Lock() Got free\n", getGID())
 				break
 			case err := <-errorCh:
-				fmt.Printf("=====> %d: etcd.Lock() Got error %s %T\n", getGID(), err, err)
+				// fmt.Printf("=====> %d: etcd.Lock() Got error %s %T\n", getGID(), err, err)
 				return nil, err
 			case <-stopChan:
-				fmt.Printf("=====> %d: etcd.Lock() Got stop.", getGID())
+				// fmt.Printf("=====> %d: etcd.Lock() Got stop.", getGID())
 				return nil, ErrAbortTryLock
 			}
 
@@ -755,7 +755,7 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 // Updates the key ttl periodically until we receive
 // an explicit stop signal from the Unlock method
 func (l *etcdLock) holdLock(key string, lockHeld chan struct{}, stopLocking <-chan struct{}) {
-	fmt.Printf("Entering goroutine holdLock: %d\n", getGID())
+	// fmt.Printf("Entering goroutine holdLock: %d\n", getGID())
 	defer close(lockHeld)
 
 	update := time.NewTicker(l.ttl / 3)
@@ -767,16 +767,16 @@ func (l *etcdLock) holdLock(key string, lockHeld chan struct{}, stopLocking <-ch
 	for {
 		select {
 		case <-update.C:
-			fmt.Printf("=====> %d: etcd.holdLock(): got update, setting %s to %s with prevIndex %d\n", getGID(), key, l.value, setOpts.PrevIndex)
+			// fmt.Printf("=====> %d: etcd.holdLock(): got update, setting %s to %s with prevIndex %d\n", getGID(), key, l.value, setOpts.PrevIndex)
 			setOpts.PrevIndex = l.last.Node.ModifiedIndex
 			l.last, err = l.client.Set(context.Background(), key, l.value, setOpts)
 			if err != nil {
-				fmt.Printf("=====> %d: etcd.holdLock(): got error %s on setting %s to %s\n", getGID(), err, key, l.value)
+				// fmt.Printf("=====> %d: etcd.holdLock(): got error %s on setting %s to %s\n", getGID(), err, key, l.value)
 				return
 			}
 
 		case msg := <-stopLocking:
-			fmt.Printf("=====> %d: etcd.holdLock(): got stopLocking: %p\n", getGID(), &msg)
+			// fmt.Printf("=====> %d: etcd.holdLock(): got stopLocking: %p\n", getGID(), &msg)
 			return
 		}
 	}
@@ -794,25 +794,25 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 	ctx, cancelFunc := context.WithTimeout(context.Background(), l.waitLockDelay)
 	defer cancelFunc()
 	for {
-		fmt.Printf("=====> %d: In the waitLock loop, waiting for event\n", getGID())
+		// fmt.Printf("=====> %d: In the waitLock loop, waiting for event\n", getGID())
 		event, err := watcher.Next(ctx)
 		if err != nil {
 			if err == context.DeadlineExceeded {
-				fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded\n", getGID())
+				// fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded\n", getGID())
 				// First, see if maybe the key is not there.
-				fmt.Printf("=====> %d: In the waitLock loop, checking for %s.\n", getGID(), key)
+				// fmt.Printf("=====> %d: In the waitLock loop, checking for %s.\n", getGID(), key)
 				kp, err2 := l.client.Get(context.Background(), key, nil)
 				if err2 != nil {
 					if etcdError, ok := err2.(etcd.Error); ok {
 						if etcdError.Code != etcd.ErrorCodeNodeExist {
-							fmt.Printf("=====> %d: In the waitLock loop, %s not found.\n", getGID(), key)
+							// fmt.Printf("=====> %d: In the waitLock loop, %s not found.\n", getGID(), key)
 							retryLock = false
 						}
 					} else {
-						fmt.Printf("=====> %d: In the waitLock loop, checking on %s: got error %s (%T)\n", getGID(), key, err2, err2)
+						// fmt.Printf("=====> %d: In the waitLock loop, checking on %s: got error %s (%T)\n", getGID(), key, err2, err2)
 					}
 				} else {
-					fmt.Printf("=====> %d: In the waitLock loop, for %s got %v\n", getGID(), key, kp)
+					// fmt.Printf("=====> %d: In the waitLock loop, for %s got %v\n", getGID(), key, kp)
 				}
 				if !retryLock {
 					free <- true
@@ -820,11 +820,11 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 					return
 				}
 
-				fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded, will retry for %s\n", getGID(), l.waitLockDelay)
+				// fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded, will retry for %s\n", getGID(), l.waitLockDelay)
 				l.waitLockDelay *= 2
 
 				if l.waitLockDelay > defaultMaxWaitLockTime {
-					fmt.Printf("=====> %d: In the waitLock loop, delay %d exceeded max wait lock time %d, aborting wait.\n", getGID(), l.waitLockDelay, defaultMaxWaitLockTime)
+					// fmt.Printf("=====> %d: In the waitLock loop, delay %d exceeded max wait lock time %d, aborting wait.\n", getGID(), l.waitLockDelay, defaultMaxWaitLockTime)
 					errorCh <- errors.New(fmt.Sprintf("Exceeded %d waiting for the lock", defaultMaxWaitLockTime))
 					l.waitLockDelay = 0
 					return
@@ -834,11 +834,11 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 				defer cancelFunc()
 				continue
 			}
-			fmt.Printf("=====> %d: In the waitLock loop, got error %s %T \n", getGID(), err, err)
+			// fmt.Printf("=====> %d: In the waitLock loop, got error %s %T \n", getGID(), err, err)
 			errorCh <- err
 			return
 		}
-		fmt.Printf("=====> %d: In the waitLock loop, event is %d (%s)\n", event, event.Action, getGID())
+		// fmt.Printf("=====> %d: In the waitLock loop, event is %d (%s)\n", event, event.Action, getGID())
 		if event.Action == "delete" || event.Action == "expire" || event.Action == "compareAndDelete" {
 			free <- true
 			l.waitLockDelay = 0
@@ -850,29 +850,29 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 // Unlock the "key". Calling unlock while
 // not holding the lock will throw an error
 func (l *etcdLock) Unlock() error {
-	fmt.Printf("=====> %d: entering etcd.Unlock()\n", getGID())
+	// fmt.Printf("=====> %d: entering etcd.Unlock()\n", getGID())
 	if l.stopLock != nil {
 		s := struct{}{}
-		fmt.Printf("=====> %d: etcd.Unlock() Sending message to stop lock: %p\n", getGID(), &s)
+		// fmt.Printf("=====> %d: etcd.Unlock() Sending message to stop lock: %p\n", getGID(), &s)
 		l.stopLock <- s
-		fmt.Printf("=====> %d: etcd.Unlock() Sent message to stop lock: %p\n", getGID(), &s)
+		// fmt.Printf("=====> %d: etcd.Unlock() Sent message to stop lock: %p\n", getGID(), &s)
 	}
-	fmt.Printf("=====> %d: etcd.Unlock(): l.last is nil: %t\n", getGID(), l.last == nil)
+	// fmt.Printf("=====> %d: etcd.Unlock(): l.last is nil: %t\n", getGID(), l.last == nil)
 	if l.last != nil {
 		delOpts := &etcd.DeleteOptions{
 			PrevIndex: l.last.Node.ModifiedIndex,
 		}
-		fmt.Printf("=====> %d: etcd.Unlock(): Deleting %s\n", getGID(), l.key)
+		// fmt.Printf("=====> %d: etcd.Unlock(): Deleting %s\n", getGID(), l.key)
 		_, err := l.client.Delete(context.Background(), l.key, delOpts)
 		if err != nil {
-			fmt.Printf("=====> %d: etcd.Unlock() ERROR %s\n", getGID(), err)
+			// fmt.Printf("=====> %d: etcd.Unlock() ERROR %s\n", getGID(), err)
 			return err
 		}
 		r, err := l.client.Get(context.Background(), l.key, nil)
 		if err != nil {
-			fmt.Printf("=====> %d: etcd.Unlock() Successfully deleted: %s\n", getGID(), err)
+			// fmt.Printf("=====> %d: etcd.Unlock() Successfully deleted: %s\n", getGID(), err)
 		} else {
-			fmt.Printf("=====> %d: etcd.Unlock(): After a Delete with %d got %s at %s\n", getGID(), l.last.Node.ModifiedIndex, r, l.key)
+			// fmt.Printf("=====> %d: etcd.Unlock(): After a Delete with %d got %s at %s\n", getGID(), l.last.Node.ModifiedIndex, r, l.key)
 		}
 	}
 	return nil
