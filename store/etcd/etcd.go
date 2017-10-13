@@ -699,7 +699,7 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 			// Leader section
 			// fmt.Printf("=====> %d: etcd.Lock(): Leader selection session: set %s to %s, with %d\n", getGID(), l.key, l.value, setOpts.PrevIndex)
 
-			r, err := l.client.Get(context.Background(), l.key, nil)
+			_, err := l.client.Get(context.Background(), l.key, nil)
 			if err != nil {
 				// fmt.Printf("=====> %d: etcd.Lock(): ERROR getting lock after set: %s %T\n", getGID(), err, err)
 				return nil, err
@@ -775,7 +775,7 @@ func (l *etcdLock) holdLock(key string, lockHeld chan struct{}, stopLocking <-ch
 				return
 			}
 
-		case msg := <-stopLocking:
+		case <-stopLocking:
 			// fmt.Printf("=====> %d: etcd.holdLock(): got stopLocking: %p\n", getGID(), &msg)
 			return
 		}
@@ -801,7 +801,7 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 				// fmt.Printf("=====> %d: In the waitLock loop, got DeadlineExceeded\n", getGID())
 				// First, see if maybe the key is not there.
 				// fmt.Printf("=====> %d: In the waitLock loop, checking for %s.\n", getGID(), key)
-				kp, err2 := l.client.Get(context.Background(), key, nil)
+				_, err2 := l.client.Get(context.Background(), key, nil)
 				if err2 != nil {
 					if etcdError, ok := err2.(etcd.Error); ok {
 						if etcdError.Code != etcd.ErrorCodeNodeExist {
@@ -868,7 +868,7 @@ func (l *etcdLock) Unlock() error {
 			// fmt.Printf("=====> %d: etcd.Unlock() ERROR %s\n", getGID(), err)
 			return err
 		}
-		r, err := l.client.Get(context.Background(), l.key, nil)
+		_, err = l.client.Get(context.Background(), l.key, nil)
 		if err != nil {
 			// fmt.Printf("=====> %d: etcd.Unlock() Successfully deleted: %s\n", getGID(), err)
 		} else {
