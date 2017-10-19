@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -41,7 +40,6 @@ type etcdLock struct {
 	value         string
 	last          *etcd.Response
 	ttl           time.Duration
-	waitLockDelay time.Duration
 }
 
 const (
@@ -761,58 +759,6 @@ func (l *etcdLock) holdLock(key string, lockHeld chan struct{}, stopLocking <-ch
 			}
 
 		case <-stopLocking:
-			return
-		}
-	}
-}
-
-// WaitLock simply waits for the key to be available for creation
-func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan bool, free chan<- bool) {
-	opts := &etcd.WatcherOptions{Recursive: false}
-	watcher := l.client.Watcher(key, opts)
-	if l.waitLockDelay == 0 {
-		l.waitLockDelay = 1 * time.Microsecond
-	}
-	retryLock := true
-	ctx, cancelFunc := context.WithTimeout(context.Background(), l.waitLockDelay)
-	defer cancelFunc()
-	for {
-		event, err := watcher.Next(ctx)
-		if err != nil {
-			if err == context.DeadlineExceeded {
-				// First, see if maybe the key is not there.
-				_, err2 := l.client.Get(context.Background(), key, nil)
-				if err2 != nil {
-					if etcdError, ok := err2.(etcd.Error); ok {
-						if etcdError.Code != etcd.ErrorCodeNodeExist {
-							retryLock = false
-						}
-					}
-				}
-				if !retryLock {
-					free <- true
-					l.waitLockDelay = 0
-					return
-				}
-
-				l.waitLockDelay *= 2
-
-				if l.waitLockDelay > defaultMaxWaitLockTime {
-					errorCh <- errors.New(fmt.Sprintf("Exceeded %d waiting for the lock", defaultMaxWaitLockTime))
-					l.waitLockDelay = 0
-					return
-				}
-
-				ctx, cancelFunc = context.WithTimeout(context.Background(), l.waitLockDelay)
-				defer cancelFunc()
-				continue
-			}
-			errorCh <- err
-			return
-		}
-		if event.Action == "delete" || event.Action == "expire" || event.Action == "compareAndDelete" {
-			free <- true
-			l.waitLockDelay = 0
 			return
 		}
 	}
