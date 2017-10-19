@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -670,12 +669,10 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 	ctx := context.Background()
 
 	var err error
-	hostname, _  := os.Hostname()
 	// fast path: key doesn't exist
 	setOpts.PrevExist = etcd.PrevNoExist
 	l.last, err = l.client.Set(ctx, l.key, l.value, setOpts)
 	if err == nil {
-		l.client.Set(ctx, l.key + ".owner", fmt.Sprintf("fast %s:%d:%s", hostname, os.Getpid(), os.Args[0]), nil)
 		l.stopLock = stopLocking
 		// hold the lock until an unlock is triggered
 		go l.holdLock(l.key, lockHeld, stopLocking)
@@ -708,7 +705,6 @@ func (l *etcdLock) Lock(stopChan <-chan struct{}) (<-chan struct{}, error) {
 		setOpts.PrevExist = etcd.PrevNoExist
 		l.last, err = l.client.Set(ctx, l.key, l.value, setOpts)
 		if err == nil {
-			l.client.Set(ctx, l.key + ".owner", fmt.Sprintf("thorough %s:%d:%s", hostname, os.Getpid(), os.Args[0]), nil)
 			l.stopLock = stopLocking
 			// hold the lock until an unlock is triggered
 			go l.holdLock(l.key, lockHeld, stopLocking)
