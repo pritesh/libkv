@@ -7,7 +7,11 @@ import (
 // CreateEndpoints creates a list of endpoints given the right scheme
 func CreateEndpoints(addrs []string, scheme string) (entries []string) {
 	for _, addr := range addrs {
-		entries = append(entries, scheme+"://"+addr)
+		if scheme == "http" && strings.HasPrefix(addr, "http://") {
+			entries = append(entries, addr)
+		} else {
+			entries = append(entries, scheme+"://"+addr)
+		}
 	}
 	return entries
 }
